@@ -1,0 +1,87 @@
+# Translation template for MCP Server.
+# Copyright (C) 2026 EffizienzAgent
+# This file is distributed under the same license as the MCP Server project.
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: MCP Server 0.1.0\n"
+"Report-Msgid-Bugs-To: oss@effizienzagent.de\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+#: mcpserver/mcp_server/doctype/mcp_settings/mcp_settings.json
+msgid "Allowed Document Types"
+msgstr ""
+
+#: mcpserver/mcp_server/doctype/mcp_settings/mcp_settings.json
+msgid "Appended to the instructions MCP clients receive when they connect."
+msgstr ""
+
+#: mcpserver/mcp_server/doctype/mcp_allowed_doctype/mcp_allowed_doctype.json
+msgid "Document Type"
+msgstr ""
+
+#: mcpserver/document_tools.py
+msgid "Document type {0} is not available."
+msgstr ""
+
+#: mcpserver/mcp_server/doctype/mcp_settings/mcp_settings.json
+msgid "Enable Document Tools"
+msgstr ""
+
+#: mcpserver/mcp_server/doctype/mcp_settings/mcp_settings.json
+msgid "Instructions"
+msgstr ""
+
+#: mcpserver/document_tools.py
+msgid "Invalid value for {0}"
+msgstr ""
+
+#: mcpserver/mcp_server/doctype/mcp_settings/mcp_settings.json
+msgid "MCP Allowed DocType"
+msgstr ""
+
+#: mcpserver/mcp_server/doctype/mcp_settings/mcp_settings.json
+msgid "MCP Server"
+msgstr ""
+
+#: mcpserver/mcp_server/doctype/mcp_settings/mcp_settings.json
+msgid "MCP Settings"
+msgstr ""
+
+#: mcpserver/mcp_server/doctype/mcp_settings/mcp_settings.json
+msgid "Offer the read-only tools list_doctypes, get_doctype, list_documents, search_documents and get_document for the document types below. Every call runs with the permissions of the signed-in user."
+msgstr ""
+
+#: mcpserver/document_tools.py
+msgid "order_by must be a field, optionally followed by asc or desc."
+msgstr ""
+
+#: mcpserver/document_tools.py
+msgid "query must not be empty."
+msgstr ""
+
+#: mcpserver/document_tools.py
+msgid "Unknown or unreadable field(s): {0}"
+msgstr ""
+
+#: mcpserver/document_tools.py
+msgid "Unknown or unreadable field: {0}"
+msgstr ""
+
+#: mcpserver/document_tools.py
+msgid "Unsupported operator: {0}"
+msgstr ""
+
+#: mcpserver/mcp_server/doctype/mcp_settings/mcp_settings.py
+msgid "{0} holds credentials and cannot be exposed."
+msgstr ""
+
+#: mcpserver/mcp_server/doctype/mcp_settings/mcp_settings.py
+msgid "{0} is a child table, single or virtual document type."
+msgstr ""
+
+#: mcpserver/mcp_server/doctype/mcp_settings/mcp_settings.py
+msgid "{0} is listed twice."
+msgstr ""

@@ -1,7 +1,7 @@
 [project]
 name = "mcpserver"
 authors = [
-    { name = "EffizienzAgent", email = "info@effizienzagent.de"}
+    { name = "EffizienzAgent", email = "oss@effizienzagent.de"}
 ]
 description = "MCP server with OAuth for the Frappe Framework"
 requires-python = ">=3.14"
