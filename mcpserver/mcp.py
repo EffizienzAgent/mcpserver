@@ -8,6 +8,7 @@ from frappe.utils import cstr, strip_html
 from werkzeug.wrappers import Response
 
 import mcpserver
+from mcpserver.access import may_use_mcp
 from mcpserver.tools import registry
 
 PROTOCOL_VERSIONS = ("2025-06-18", "2025-03-26", "2024-11-05")
@@ -43,6 +44,8 @@ def endpoint(**kwargs):
 			"Authentication required: sign in via OAuth or send Authorization: token key:secret",
 			401,
 		)
+	if not may_use_mcp():
+		return error_response(INVALID_REQUEST, "Your roles do not allow MCP access", 403)
 	if not accepts_json(request):
 		return error_response(INVALID_REQUEST, "Accept must include application/json", 406)
 	version = request.headers.get("MCP-Protocol-Version")
@@ -50,7 +53,7 @@ def endpoint(**kwargs):
 		return error_response(INVALID_REQUEST, f"Unsupported MCP-Protocol-Version: {version}", 400)
 	try:
 		message = json.loads(request.get_data(as_text=True))
-	except ValueError:
+	except ValueError, RecursionError:
 		return error_response(PARSE_ERROR, "Parse error", 400)
 	if isinstance(message, list):
 		return error_response(INVALID_REQUEST, "Batch requests are not supported", 400)

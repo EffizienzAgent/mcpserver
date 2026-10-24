@@ -17,4 +17,4 @@ override_whitelisted_methods = {
 	"frappe.integrations.oauth2.register_client": "mcpserver.oauth.register_client",
 }
 
-scheduler_events = {"daily": ["mcpserver.oauth.cleanup_dynamic_clients"]}
+scheduler_events = {"hourly": ["mcpserver.oauth.cleanup_dynamic_clients"]}

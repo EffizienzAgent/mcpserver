@@ -55,6 +55,10 @@ def hidden():
 	return "hidden"
 
 
+def never():
+	return False
+
+
 def plain(value=None):
 	return {"plain": value}
 

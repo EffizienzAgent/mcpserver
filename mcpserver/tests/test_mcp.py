@@ -9,7 +9,15 @@ from werkzeug.wrappers import Request
 import mcpserver
 from mcpserver import mcp, setup, tools
 from mcpserver.tests import sample_tools
-from mcpserver.tests.helpers import ACCEPT, MCP_PATH, hooks, make_user, restore_request_state, unique
+from mcpserver.tests.helpers import (
+	ACCEPT,
+	MCP_PATH,
+	hooks,
+	make_role,
+	make_user,
+	restore_request_state,
+	unique,
+)
 
 SAMPLE = "mcpserver.tests.sample_tools"
 
@@ -161,6 +169,73 @@ class TestProtocol(McpTestCase):
 			body = self.rpc("tools/call", {"name": "echo", "arguments": arguments})
 			self.assertEqual(body["error"]["code"], -32602, arguments)
 
+	def test_schema_limits_are_enforced(self):
+		for arguments in (
+			{"text": "x", "count": 0},
+			{"text": "x", "count": 101},
+			{"text": "x" * 10_001},
+			{"text": "x", "tags": [1]},
+		):
+			body = self.rpc("tools/call", {"name": "echo", "arguments": arguments})
+			self.assertEqual(body["error"]["code"], -32602, str(arguments)[:80])
+		self.assertEqual(self.ok("echo", text="x" * 10_000, count=100)["count"], 100)
+
+	def test_nested_objects_and_items_are_validated(self):
+		schema = {
+			"type": "object",
+			"properties": {
+				"value": {
+					"type": "object",
+					"properties": {
+						"field": {"type": "string", "maxLength": 5},
+						"values": {"type": "array", "items": {"type": "integer"}},
+					},
+					"required": ["field"],
+					"additionalProperties": False,
+				}
+			},
+		}
+		entry = {
+			"name": "plain",
+			"description": "Nested.",
+			"method": f"{SAMPLE}.plain",
+			"input_schema": schema,
+		}
+		with hooks(mcp_tools=[entry]):
+			for value in (
+				{"values": [1]},
+				{"field": "toolong"},
+				{"field": "ok", "values": ["1"]},
+				{"field": "ok", "extra": 1},
+				"not an object",
+			):
+				body = self.rpc("tools/call", {"name": "plain", "arguments": {"value": value}})
+				self.assertEqual(body["error"]["code"], -32602, value)
+			self.assertEqual(
+				self.ok("plain", value={"field": "ok", "values": [1, 2]}),
+				{"plain": {"field": "ok", "values": [1, 2]}},
+			)
+
+	def test_deeply_nested_json_is_a_client_error(self):
+		response = self.post('{"a":' * 100_000 + "1" + "}" * 100_000, content_type="text/plain")
+		self.assertEqual(response.status_code, 400)
+		self.assertIn(json.loads(response.get_data())["error"]["code"], (-32700, -32600))
+		with patch("mcpserver.mcp.json.loads", side_effect=RecursionError):
+			response = self.post("{}", content_type="text/plain")
+		self.assertEqual(response.status_code, 400)
+		self.assertEqual(json.loads(response.get_data())["error"]["code"], -32700)
+
+	def test_only_allowed_roles_may_use_the_endpoint(self):
+		website_user = make_user("mcp-website@example.test", desk=False)
+		self.assertEqual(
+			self.post({"jsonrpc": "2.0", "id": 1, "method": "ping"}, user=website_user).status_code, 403
+		)
+		make_role("MCP Agent")
+		with hooks(mcp_allowed_roles=["MCP Agent"]):
+			self.assertEqual(self.post({"jsonrpc": "2.0", "id": 1, "method": "ping"}).status_code, 403)
+			agent = make_user("mcp-agent@example.test", ["MCP Agent"])
+			self.assertEqual(self.rpc("ping", user=agent)["result"], {})
+
 	def test_valid_arguments_reach_the_tool(self):
 		value = self.ok("echo", text="hi", count=3, loud=False, mood="calm", tags=["a", "b"])
 		self.assertEqual(value, {"text": "hi", "count": 3, "loud": False, "mood": "calm", "tags": ["a", "b"]})
@@ -226,6 +301,16 @@ class TestRegistry(McpTestCase):
 			self.assertEqual(
 				self.rpc("tools/call", {"name": "plain", "arguments": {"v": 1}})["error"]["code"], -32602
 			)
+
+	def test_dict_entries_can_be_gated(self):
+		entry = {
+			"name": "gated",
+			"description": "Gated.",
+			"method": f"{SAMPLE}.plain",
+			"available": f"{SAMPLE}.never",
+		}
+		with hooks(mcp_tools=[entry, f"{SAMPLE}.whoami"]):
+			self.assertEqual(self.names(), ["whoami"])
 
 	def test_later_entries_replace_earlier_ones(self):
 		entry = {"name": "echo", "description": "Replaced.", "method": f"{SAMPLE}.plain"}

@@ -35,9 +35,17 @@ anything you switch off stays off. Set **Resource Name** yourself; clients show 
 - Only the `code` response type and the `authorization_code` and `refresh_token` grants. Scopes must be
   plain tokens; the default is `all`.
 - `client_name` must be plain text (letters, digits, spaces and `. _ ( ) - : / +`, up to 120 characters),
-  because Frappe's consent page shows it. It is also HTML-escaped when stored.
-- 20 registrations per IP and hour, at most 200 registered clients (then `429`). Registration can be
-  switched off in OAuth Settings (`404`).
+  because Frappe's consent page shows it. It is also HTML-escaped when stored, and prefixed with
+  `(unverified) ` so the consent page does not suggest a vetted app.
+- 20 registrations per IP and hour. The limit uses Frappe's request IP, which comes from
+  `X-Forwarded-For` behind a proxy: make sure your proxy overwrites that header instead of appending to
+  what the client sent, or the limit can be bypassed.
+- At most 200 registered clients. When the cap is reached, the oldest client that never got a token is
+  deleted to make room; only if every client has tokens does registration answer `429`. Registration can
+  be switched off in OAuth Settings (`404`).
+- Only users with an allowed role can authorize a registered client: **Desk User** (every System User) by
+  default, or the roles listed in the `mcp_allowed_roles` hook. The same roles are required to call the
+  MCP endpoint, so Website Users get `403`.
 - A registered client gets nothing by itself. Tokens are only issued after the user signs in and clicks
   **Allow**, and only to the registered redirect URI.
 
@@ -65,7 +73,10 @@ exchanged, and a code can only be used once.
   gets `400 invalid_grant` and changes nothing else. Presenting it later is treated as theft: all active
   tokens of that client and user are revoked, and the user signs in again.
 - Trade-off of the grace window: a stolen refresh token that is used within 60 seconds of a rotation is
-  refused but not detected as reuse, so the grant is not revoked in that case.
+  refused but not detected as reuse, so the grant is not revoked in that case. The window exists so that
+  retries and parallel sessions with the same token do not sign the user out.
+- Reuse is only detected while the revoked token row exists. Revoked rows are kept for 30 days, which is
+  as long as a sign-in can last.
 - A sign-in lasts at most 30 days. Rotated tokens keep the issue time of the first token, so refreshing
   does not extend it; after that the refresh gets `400 invalid_grant` and the user signs in again.
 - Access tokens live one hour. Revoked and expired access tokens are rejected by Frappe.
@@ -88,5 +99,6 @@ mcp_bearer_methods = ["myapp.api.agent_status"]
 
 ## Cleanup
 
-A daily job deletes tokens of registered clients that were revoked more than 7 days ago or issued more than
-37 days ago, and registered clients older than 7 days that have no token left.
+An hourly job deletes tokens of registered clients that were revoked more than 30 days ago or belong to a
+sign-in older than 30 days, and registered clients older than one hour that never got a token (or have
+none left).
