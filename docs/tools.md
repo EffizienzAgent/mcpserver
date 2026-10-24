@@ -18,6 +18,7 @@ mcp_tools = [
 			"required": ["device"],
 		},
 		"read_only": True,
+		"available": "myapp.devices.agents_enabled",  # optional, see `available` below
 	},
 ]
 ```
@@ -60,10 +61,17 @@ Arguments:
 Schema helpers in `mcpserver.tools`: `string(description, enum=None)`, `integer(description, minimum=1,
 maximum=100)`, `boolean(description)`, `string_list(description, enum=None)` and `obj(description)`.
 
-Before a tool runs, the server refuses unknown arguments, missing required ones, wrong JSON types
-(`string`, `integer`, `number`, `boolean`, `array`, `object`; booleans never count as numbers) and values
-outside an `enum`. Those are JSON-RPC errors (`-32602`). Other schema keywords, such as `minimum`, are
-only hints for the client; check them in the tool or clamp, as `limit_of` does.
+Before a tool runs, the server checks the arguments against the schema and refuses, as JSON-RPC errors
+(`-32602`):
+
+- unknown arguments and missing or empty required ones;
+- wrong JSON types (`string`, `integer`, `number`, `boolean`, `array`, `object`; booleans never count as
+  numbers), checked for array items and nested object properties too;
+- values outside an `enum`, numbers outside `minimum` / `maximum`, and strings longer than `maxLength`
+  (10,000 characters when not set);
+- for nested objects: missing `required` properties and, with `additionalProperties: false`, unknown ones.
+
+Other schema keywords are only hints for the client.
 
 ## Writing tools safely
 
@@ -82,11 +90,14 @@ only hints for the client; check them in the tool or clamp, as `limit_of` does.
 mcp_server_info = {"name": "myapp", "title": "My App", "version": "1.0.0"}
 mcp_instructions = ["myapp.mcp_tools.INSTRUCTIONS"]
 mcp_call_context = ["myapp.mcp_tools.call_context"]
+mcp_allowed_roles = ["Agent User"]
 ```
 
 - `mcp_server_info`: `serverInfo` in the `initialize` response. The last app that sets a key wins. The
   defaults are `mcpserver`, `MCP server` and the app version.
 - `mcp_instructions`: dotted paths to strings or functions returning strings. They are joined and sent
   to clients on `initialize`.
+- `mcp_allowed_roles`: roles that may authorize clients and call the endpoint. Without the hook, every
+  System User (role **Desk User**) may.
 - `mcp_call_context`: dotted paths to context manager factories. Each tool call runs inside all of them,
   for example to set a flag that suppresses outgoing sync while an agent writes.

@@ -8,6 +8,7 @@ import frappe
 from frappe.utils import cint, get_url_to_form
 
 DEFAULT_LIMIT = 20
+MAX_STRING = 10_000
 MAX_LIMIT = 100
 JSON_TYPES = {
 	"string": str,
@@ -53,27 +54,48 @@ class Tool:
 		return self.available is None or bool(self.available())
 
 	def invalid_arguments(self, arguments) -> str | None:
-		unknown = set(arguments) - set(self.properties)
-		if unknown:
-			return f"unknown argument(s) {', '.join(sorted(unknown))}"
-		missing = [key for key in self.required if arguments.get(key) in (None, "")]
-		if missing:
-			return f"missing required argument(s) {', '.join(missing)}"
-		for key, value in arguments.items():
-			if value is not None and (problem := invalid_value(key, value, self.properties[key])):
-				return problem
+		schema = {"type": "object", "properties": self.properties, "required": self.required}
+		return invalid_value("arguments", arguments, {**schema, "additionalProperties": False})
+
+
+def invalid_value(path, value, schema) -> str | None:
+	if value is None:
 		return None
-
-
-def invalid_value(key, value, schema) -> str | None:
-	expected = JSON_TYPES.get(schema.get("type"))
+	type_name = schema.get("type")
+	expected = JSON_TYPES.get(type_name)
 	if expected is None:
 		return None
 	if not isinstance(value, expected) or (expected is not bool and isinstance(value, bool)):
-		return f"{key} must be of type {schema['type']}"
-	allowed = schema.get("enum") or schema.get("items", {}).get("enum")
-	if allowed and any(v not in allowed for v in (value if isinstance(value, list) else [value])):
-		return f"{key} must be one of {', '.join(map(str, allowed))}"
+		return f"{path} must be of type {type_name}"
+	if "enum" in schema and value not in schema["enum"]:
+		return f"{path} must be one of {', '.join(map(str, schema['enum']))}"
+	if type_name == "string" and len(value) > schema.get("maxLength", MAX_STRING):
+		return f"{path} must be at most {schema.get('maxLength', MAX_STRING)} characters"
+	if type_name in ("integer", "number"):
+		if "minimum" in schema and value < schema["minimum"]:
+			return f"{path} must be at least {schema['minimum']}"
+		if "maximum" in schema and value > schema["maximum"]:
+			return f"{path} must be at most {schema['maximum']}"
+	if type_name == "array":
+		for index, item in enumerate(value):
+			if problem := invalid_value(f"{path}[{index}]", item, schema.get("items", {})):
+				return problem
+	if type_name == "object":
+		return invalid_object(path, value, schema)
+	return None
+
+
+def invalid_object(path, value, schema) -> str | None:
+	properties = schema.get("properties") or {}
+	prefix = "" if path == "arguments" else f"{path}."
+	if schema.get("additionalProperties") is False and (unknown := set(value) - set(properties)):
+		return f"unknown argument(s) {', '.join(prefix + key for key in sorted(unknown))}"
+	missing = [key for key in schema.get("required") or () if value.get(key) in (None, "")]
+	if missing:
+		return f"missing required argument(s) {', '.join(prefix + key for key in missing)}"
+	for key, item in value.items():
+		if key in properties and (problem := invalid_value(prefix + key, item, properties[key])):
+			return problem
 	return None
 
 
@@ -123,6 +145,7 @@ def from_dict(entry) -> Tool:
 		required=tuple(schema.get("required") or ()),
 		read_only=bool(entry.get("read_only", False)),
 		run=frappe.get_attr(entry["method"]),
+		available=frappe.get_attr(entry["available"]) if entry.get("available") else None,
 	)
 
 
