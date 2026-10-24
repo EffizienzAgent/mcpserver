@@ -216,8 +216,12 @@ class TestProtocol(McpTestCase):
 				{"plain": {"field": "ok", "values": [1, 2]}},
 			)
 
-	def test_deeply_nested_json_is_a_parse_error(self):
-		response = self.post("[" * 100_000 + "]" * 100_000, content_type="text/plain")
+	def test_deeply_nested_json_is_a_client_error(self):
+		response = self.post('{"a":' * 100_000 + "1" + "}" * 100_000, content_type="text/plain")
+		self.assertEqual(response.status_code, 400)
+		self.assertIn(json.loads(response.get_data())["error"]["code"], (-32700, -32600))
+		with patch("mcpserver.mcp.json.loads", side_effect=RecursionError):
+			response = self.post("{}", content_type="text/plain")
 		self.assertEqual(response.status_code, 400)
 		self.assertEqual(json.loads(response.get_data())["error"]["code"], -32700)
 
