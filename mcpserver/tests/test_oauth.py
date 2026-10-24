@@ -12,7 +12,6 @@ from frappe.tests import IntegrationTestCase
 from frappe.utils import add_to_date, now_datetime
 
 from mcpserver import mcp, oauth
-from mcpserver.setup import OAUTH_SETTINGS_MARKER as SETTINGS_MARKER
 from mcpserver.setup import apply_oauth_settings
 from mcpserver.tests.helpers import (
 	BASE,
@@ -119,24 +118,26 @@ class TestSettings(OAuthTestCase):
 			"select value from tabSingles where doctype = 'OAuth Settings' and field = %s", field
 		)
 
-	def test_settings_are_applied_once(self):
+	def test_missing_settings_are_filled_and_stored_ones_kept(self):
 		self.addCleanup(
 			frappe.db.set_single_value,
 			"OAuth Settings",
-			{"enable_dynamic_client_registration": 1, "skip_authorization": 0},
+			{
+				"enable_dynamic_client_registration": 1,
+				"skip_authorization": 0,
+				"show_auth_server_metadata": 1,
+			},
 		)
-		frappe.db.set_default(SETTINGS_MARKER, 0)
 		frappe.db.set_single_value(
 			"OAuth Settings", {"enable_dynamic_client_registration": 0, "skip_authorization": 1}
 		)
+		frappe.db.sql(
+			"delete from tabSingles where doctype = 'OAuth Settings' and field = 'show_auth_server_metadata'"
+		)
 		apply_oauth_settings()
-		self.assertEqual(self.stored("enable_dynamic_client_registration"), (("1",),))
-		self.assertEqual(self.stored("skip_authorization"), (("0",),))
-		self.assertEqual(self.stored("show_protected_resource_metadata"), (("1",),))
-		self.assertEqual(frappe.db.get_default(SETTINGS_MARKER), "1")
-		frappe.db.set_single_value("OAuth Settings", "enable_dynamic_client_registration", 0)
-		apply_oauth_settings()
+		self.assertEqual(self.stored("show_auth_server_metadata"), (("1",),))
 		self.assertEqual(self.stored("enable_dynamic_client_registration"), (("0",),))
+		self.assertEqual(self.stored("skip_authorization"), (("1",),))
 
 	def test_frappe_oauth_endpoints_are_overridden(self):
 		for name in ("authorize", "approve", "get_token", "register_client"):

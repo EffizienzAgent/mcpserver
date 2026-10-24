@@ -19,10 +19,10 @@ reachable under several host names works under each of them.
 
 ## Settings
 
-On install, and once after a migrate if it was installed earlier, the app sets in **OAuth Settings**:
-authorization server metadata and protected resource metadata on, dynamic client registration on, skip
-authorization off. It then sets the site default `mcpserver_oauth_settings_applied` and never touches the
-settings again, so anything you switch off stays off. Set **Resource Name** yourself; clients show it.
+The app needs these **OAuth Settings**: authorization server metadata and protected resource metadata on,
+dynamic client registration on, skip authorization off. Frappe v16 uses these values by default. On install
+and migrate, the app only fills in settings that were never stored. It never changes a stored value, so
+anything you switch off stays off. Set **Resource Name** yourself; clients show it.
 
 ## Registration
 

@@ -26,8 +26,9 @@ bench get-app https://github.com/EffizienzAgent/mcpserver
 bench --site <site> install-app mcpserver
 ```
 
-Requires Frappe v16. Installing turns on Frappe's OAuth discovery metadata and dynamic client registration
-once. After that, the app leaves **OAuth Settings** alone.
+Requires Frappe v16. OAuth discovery metadata and dynamic client registration must be on in **OAuth
+Settings**, as they are by default. The app fills in these settings only where none are stored and never
+changes a stored value.
 
 ## Connect a client
 

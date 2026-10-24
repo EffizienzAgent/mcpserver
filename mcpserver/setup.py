@@ -6,11 +6,10 @@ OAUTH_SETTINGS = {
 	"enable_dynamic_client_registration": 1,
 	"skip_authorization": 0,
 }
-OAUTH_SETTINGS_MARKER = "mcpserver_oauth_settings_applied"
 
 
 def apply_oauth_settings():
-	if frappe.db.get_default(OAUTH_SETTINGS_MARKER) == "1":
-		return
-	frappe.db.set_single_value("OAuth Settings", OAUTH_SETTINGS)
-	frappe.db.set_default(OAUTH_SETTINGS_MARKER, 1)
+	stored = set(frappe.db.sql_list("select field from tabSingles where doctype = 'OAuth Settings'"))
+	missing = {field: value for field, value in OAUTH_SETTINGS.items() if field not in stored}
+	if missing:
+		frappe.db.set_single_value("OAuth Settings", missing)
