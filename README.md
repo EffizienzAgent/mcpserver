@@ -17,14 +17,17 @@ runs as the signed-in user, with that user's permissions.
 - **Safe tool calls.** Arguments are checked against the tool's schema. A failed call rolls back everything
   it wrote, including commit callbacks, and unexpected errors never leak tracebacks.
 
-## Install
+## Installation
 
-```sh
-bench get-app https://github.com/EffizienzAgent/mcpserver
+```bash
+bench get-app https://github.com/EffizienzAgent/mcpserver --branch version-16
 bench --site <site> install-app mcpserver
 ```
 
-Requires Frappe v16. The app ships no tools of its own; install an app that registers tools through the
+**Compatibility:** Frappe v16. The `version-16` branch always points to the latest release; tagged releases
+and the changelog are on the [releases page](https://github.com/EffizienzAgent/mcpserver/releases).
+
+The app ships no tools of its own; install an app that registers tools through the
 `mcp_tools` hook, or write your own (see [docs/tools.md](docs/tools.md)). OAuth discovery metadata and dynamic client registration must be on in **OAuth
 Settings**, as they are by default. The app fills in these settings only where none are stored and never
 changes a stored value.
