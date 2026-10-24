@@ -25,6 +25,7 @@ REGISTRATION_LIMIT = 20
 MAX_DYNAMIC_CLIENTS = 200
 REFRESH_TOKEN_DAYS = 30
 STALE_DAYS = 7
+ROTATION_GRACE_SECONDS = 60
 PKCE_REQUIRED = "PKCE with code_challenge_method=S256 is required"
 
 
@@ -51,7 +52,7 @@ def get_token(*args, **kwargs):
 		return oauth_error(*problem)
 	response = oauth2.get_token(*args, **kwargs)
 	if is_dynamic_client(token.client):
-		rotate(token)
+		return rotate(token) or response
 	return response
 
 
@@ -61,8 +62,9 @@ def refresh_token_row(refresh_token):
 	return frappe.db.get_value(
 		"OAuth Bearer Token",
 		{"refresh_token": refresh_token},
-		["name", "client", "user", "status", "creation"],
+		["name", "client", "user", "status", "creation", "modified"],
 		as_dict=True,
+		for_update=True,
 	)
 
 
@@ -72,7 +74,7 @@ def refresh_problem(token, client_id):
 	if not token or (client_id and token.client != client_id):
 		return "invalid_grant", "Unknown or revoked refresh token"
 	if token.status != "Active":
-		if is_dynamic_client(token.client):
+		if is_dynamic_client(token.client) and not recently_revoked(token):
 			revoke_grant(token)
 		return "invalid_grant", "Unknown or revoked refresh token"
 	if token.creation < add_to_date(now_datetime(), days=-REFRESH_TOKEN_DAYS):
@@ -81,12 +83,28 @@ def refresh_problem(token, client_id):
 	return None
 
 
+def recently_revoked(token) -> bool:
+	return token.modified > add_to_date(now_datetime(), seconds=-ROTATION_GRACE_SECONDS)
+
+
 def rotate(old):
 	issued = frappe.local.response.get("access_token")
 	if not issued or frappe.local.response.get("error"):
-		return
-	frappe.db.set_value("OAuth Bearer Token", old.name, "status", "Revoked")
+		return None
+	if not claim(old.name):
+		frappe.db.set_value("OAuth Bearer Token", issued, "status", "Revoked")
+		frappe.local.response = frappe._dict()
+		return oauth_error("invalid_grant", "Unknown or revoked refresh token")
 	frappe.db.set_value("OAuth Bearer Token", issued, "creation", old.creation, update_modified=False)
+	return None
+
+
+def claim(name) -> bool:
+	frappe.db.sql(
+		"update `tabOAuth Bearer Token` set status = 'Revoked', modified = %s where name = %s and status = 'Active'",
+		(now_datetime(), name),
+	)
+	return frappe.db._cursor.rowcount == 1
 
 
 def revoke_grant(token):

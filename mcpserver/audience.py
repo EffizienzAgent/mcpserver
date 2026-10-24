@@ -24,6 +24,8 @@ def check_bearer_audience():
 
 
 def requested_method():
+	if cmd := frappe.form_dict.get("cmd"):
+		return cmd if isinstance(cmd, str) else None
 	path = frappe.request.path.rstrip("/")
 	for prefix in METHOD_PREFIXES:
 		if path.startswith(prefix):

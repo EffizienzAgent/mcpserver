@@ -66,6 +66,38 @@ class TestBearerAudience(IntegrationTestCase):
 			self.assertFalse(self.allowed(path), path)
 		self.assertFalse(self.allowed("/api/method/frappe.client.get_list", scheme="bearer"))
 
+	def test_cmd_rpc_cannot_bypass_the_path_check(self):
+		token = self.dynamic.access_token
+		headers = {"Authorization": f"Bearer {token}"}
+		endpoint = "/api/method/mcpserver.mcp.endpoint"
+		requests = (
+			{"query": {"cmd": "frappe.client.get_list"}},
+			{"body": {"cmd": "frappe.client.get_list"}, "content_type": "application/x-www-form-urlencoded"},
+			{"body": {"cmd": "frappe.client.get_list"}},
+			{"body": {"cmd": ["frappe.client.get_list"]}},
+		)
+		for request in requests:
+			set_request(
+				"POST",
+				endpoint,
+				request.get("body"),
+				headers,
+				query=request.get("query"),
+				content_type=request.get("content_type", "application/json"),
+			)
+			self.assertTrue(frappe.form_dict.get("cmd"), request)
+			with self.assertRaises(frappe.PermissionError, msg=request):
+				audience.check_bearer_audience()
+		set_request("POST", "/", {"cmd": "mcpserver.mcp.endpoint"}, headers)
+		audience.check_bearer_audience()
+		set_request(
+			"POST",
+			endpoint,
+			{"cmd": "frappe.client.get_list"},
+			{"Authorization": f"Bearer {self.manual.access_token}"},
+		)
+		audience.check_bearer_audience()
+
 	def test_endpoint_aliases_and_hook_methods_are_allowed(self):
 		alias = "/api/method/myapp.mcp.endpoint"
 		self.assertFalse(self.allowed(alias))
