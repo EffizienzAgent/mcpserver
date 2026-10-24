@@ -129,7 +129,12 @@ def from_dict(entry) -> Tool:
 def registry() -> dict[str, Tool]:
 	tools = {}
 	for entry in frappe.get_hooks("mcp_tools"):
-		for found in from_hook_entry(entry):
+		try:
+			found_tools = from_hook_entry(entry)
+		except Exception:
+			frappe.log_error(title=f"Invalid mcp_tools entry: {entry}")
+			continue
+		for found in found_tools:
 			tools[found.name] = found
 	return {name: found for name, found in tools.items() if found.is_available()}
 

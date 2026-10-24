@@ -500,11 +500,57 @@ class TestBearerTokens(OAuthTestCase):
 		for refresh_token in (unique(), revoked.refresh_token):
 			self.assert_oauth_error(self.refresh(refresh_token), 400, "invalid_grant")
 
-	def test_refresh_keeps_the_previous_token(self):
+	def test_manual_clients_keep_frappes_refresh_behaviour(self):
 		old = self.make_token()
 		self.assertIsNone(self.refresh(old.refresh_token))
 		self.assertTrue(frappe.local.response.get("access_token"))
 		self.assertEqual(frappe.db.get_value("OAuth Bearer Token", old.name, "status"), "Active")
+
+	def test_refresh_rotates_and_revokes_the_presented_token(self):
+		self.client.db_set("software_id", oauth.DYNAMIC_CLIENT_ID)
+		old = self.make_token()
+		backdate("OAuth Bearer Token", old.name, days=10)
+		old_creation = frappe.db.get_value("OAuth Bearer Token", old.name, "creation")
+		self.assertIsNone(self.refresh(old.refresh_token))
+		issued = frappe._dict(frappe.local.response)
+		self.assertNotEqual(issued.refresh_token, old.refresh_token)
+		self.assertEqual(frappe.db.get_value("OAuth Bearer Token", old.name, "status"), "Revoked")
+		new = frappe.get_doc("OAuth Bearer Token", issued.access_token)
+		self.assertEqual((new.status, new.user), ("Active", self.user))
+		self.assertEqual(new.creation, old_creation)
+		with self.assertRaises(frappe.AuthenticationError):
+			self.rpc(old.access_token, "ping")
+		self.assertIsNone(self.refresh(issued.refresh_token))
+
+	def test_grant_lifetime_does_not_slide_with_refreshes(self):
+		self.client.db_set("software_id", oauth.DYNAMIC_CLIENT_ID)
+		token = self.make_token()
+		backdate("OAuth Bearer Token", token.name, days=29)
+		self.assertIsNone(self.refresh(token.refresh_token))
+		issued = frappe.local.response["access_token"]
+		backdate("OAuth Bearer Token", issued, days=31)
+		refresh_token = frappe.db.get_value("OAuth Bearer Token", issued, "refresh_token")
+		self.assert_oauth_error(self.refresh(refresh_token), 400, "invalid_grant")
+
+	def test_reused_refresh_token_revokes_the_grant(self):
+		self.client.db_set("software_id", oauth.DYNAMIC_CLIENT_ID)
+		stolen = self.make_token()
+		other_user = self.make_token(user=self.other)
+		self.assertIsNone(self.refresh(stolen.refresh_token))
+		rotated = frappe.local.response["access_token"]
+		self.assert_oauth_error(self.refresh(stolen.refresh_token), 400, "invalid_grant")
+		self.assertEqual(frappe.db.get_value("OAuth Bearer Token", rotated, "status"), "Revoked")
+		self.assertEqual(frappe.db.get_value("OAuth Bearer Token", other_user.name, "status"), "Active")
+
+	def test_failed_refresh_revokes_nothing(self):
+		self.client.db_set("software_id", oauth.DYNAMIC_CLIENT_ID)
+		token = self.make_token()
+		with patch(
+			"frappe.integrations.oauth2.get_token",
+			side_effect=lambda *a, **k: frappe.local.response.update(error="invalid_grant"),
+		):
+			self.refresh(token.refresh_token)
+		self.assertEqual(frappe.db.get_value("OAuth Bearer Token", token.name, "status"), "Active")
 
 	def test_dynamic_clients_must_send_client_id_on_refresh(self):
 		self.client.db_set("software_id", oauth.DYNAMIC_CLIENT_ID)

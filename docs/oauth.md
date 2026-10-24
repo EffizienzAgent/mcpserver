@@ -55,11 +55,32 @@ exchanged, and a code can only be used once.
 
 - An unknown `client_id` gets `401 invalid_client`.
 - A refresh request for a registered client without `client_id` gets `400 invalid_request`.
-- A refresh token that is unknown, revoked, belongs to another client or is older than 30 days gets
-  `400 invalid_grant`; expired ones are marked Revoked.
-- Refresh does not rotate the refresh token, so several sessions sharing one sign-in keep working. Each
-  refresh token still ends 30 days after it was issued.
+- A refresh token that is unknown, revoked or belongs to another client gets `400 invalid_grant`.
+- Each refresh rotates the token: the client gets a new access and refresh token, and the presented
+  token (access and refresh) is revoked at once. Frappe alone issues a new refresh token but leaves the
+  old one valid, so a stolen refresh token would keep working.
+- Presenting a revoked refresh token again is treated as theft: all active tokens of that client and
+  user are revoked, and the user signs in again.
+- A sign-in lasts at most 30 days. Rotated tokens keep the issue time of the first token, so refreshing
+  does not extend it; after that the refresh gets `400 invalid_grant` and the user signs in again.
+- Trade-off: if two processes hold copies of the same refresh token and both refresh, the second one
+  counts as reuse and both are signed out. Clients that keep a single shared token store are not
+  affected.
 - Access tokens live one hour. Revoked and expired access tokens are rejected by Frappe.
+
+## Token audience
+
+Access tokens of registered clients are only accepted on the MCP endpoint, its aliases and the OAuth
+token endpoints (`get_token`, `revoke_token`, `introspect_token`, `openid_profile`). Anywhere else, for
+example `/api/resource/...`, `/api/v2/mcp`, desk pages or private files, the request gets `403`. Requests
+without a bearer token, API keys and manually created OAuth clients are not affected.
+
+Aliases are found automatically: every key in `override_whitelisted_methods` that points to
+`mcpserver.mcp.endpoint`. Allow further whitelisted methods for these tokens with a hook:
+
+```python
+mcp_bearer_methods = ["myapp.api.agent_status"]
+```
 
 ## Cleanup
 

@@ -22,7 +22,8 @@ mcp_tools = [
 ]
 ```
 
-Later entries replace earlier tools with the same name, so an app can override a tool of another app.
+Later entries replace earlier tools with the same name, so an app can override a tool of another app. An
+entry that cannot be loaded is logged to the Error Log and skipped; the other tools keep working.
 
 ## The `@tool` decorator
 

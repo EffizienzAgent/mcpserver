@@ -44,27 +44,58 @@ def get_token(*args, **kwargs):
 	client_id = form.get("client_id")
 	if client_id and not frappe.db.exists("OAuth Client", client_id):
 		return oauth_error("invalid_client", "Unknown client", 401)
-	if form.get("grant_type") == "refresh_token":
-		if problem := refresh_problem(form.get("refresh_token"), client_id):
-			return oauth_error(*problem)
-	return oauth2.get_token(*args, **kwargs)
+	if form.get("grant_type") != "refresh_token":
+		return oauth2.get_token(*args, **kwargs)
+	token = refresh_token_row(form.get("refresh_token"))
+	if problem := refresh_problem(token, client_id):
+		return oauth_error(*problem)
+	response = oauth2.get_token(*args, **kwargs)
+	if is_dynamic_client(token.client):
+		rotate(token)
+	return response
 
 
-def refresh_problem(refresh_token, client_id):
-	token = refresh_token and frappe.db.get_value(
+def refresh_token_row(refresh_token):
+	if not refresh_token:
+		return None
+	return frappe.db.get_value(
 		"OAuth Bearer Token",
 		{"refresh_token": refresh_token},
-		["name", "client", "status", "creation"],
+		["name", "client", "user", "status", "creation"],
 		as_dict=True,
 	)
+
+
+def refresh_problem(token, client_id):
 	if token and not client_id and is_dynamic_client(token.client):
 		return "invalid_request", "client_id is required"
-	if not token or token.status != "Active" or (client_id and token.client != client_id):
+	if not token or (client_id and token.client != client_id):
+		return "invalid_grant", "Unknown or revoked refresh token"
+	if token.status != "Active":
+		if is_dynamic_client(token.client):
+			revoke_grant(token)
 		return "invalid_grant", "Unknown or revoked refresh token"
 	if token.creation < add_to_date(now_datetime(), days=-REFRESH_TOKEN_DAYS):
 		frappe.db.set_value("OAuth Bearer Token", token.name, "status", "Revoked")
 		return "invalid_grant", "Refresh token expired"
 	return None
+
+
+def rotate(old):
+	issued = frappe.local.response.get("access_token")
+	if not issued or frappe.local.response.get("error"):
+		return
+	frappe.db.set_value("OAuth Bearer Token", old.name, "status", "Revoked")
+	frappe.db.set_value("OAuth Bearer Token", issued, "creation", old.creation, update_modified=False)
+
+
+def revoke_grant(token):
+	frappe.db.set_value(
+		"OAuth Bearer Token",
+		{"client": token.client, "user": token.user, "status": "Active"},
+		"status",
+		"Revoked",
+	)
 
 
 def pkce_rejection():

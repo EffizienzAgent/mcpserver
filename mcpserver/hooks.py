@@ -8,6 +8,8 @@ app_license = "mit"
 after_install = "mcpserver.setup.after_install"
 after_migrate = "mcpserver.setup.apply_oauth_settings"
 
+before_request = ["mcpserver.audience.check_bearer_audience"]
+
 override_whitelisted_methods = {
 	"frappe.integrations.oauth2.authorize": "mcpserver.oauth.authorize",
 	"frappe.integrations.oauth2.approve": "mcpserver.oauth.approve",

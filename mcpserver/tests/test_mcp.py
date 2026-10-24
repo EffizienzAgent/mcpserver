@@ -232,9 +232,12 @@ class TestRegistry(McpTestCase):
 		with hooks(mcp_tools=[SAMPLE, entry]):
 			self.assertEqual(self.ok("echo"), {"plain": None})
 
-	def test_invalid_entry_fails_loudly(self):
-		with hooks(mcp_tools=[f"{SAMPLE}.plain"]), self.assertRaises(TypeError):
-			tools.registry()
+	def test_broken_entries_are_logged_and_skipped(self):
+		broken = [f"{SAMPLE}.plain", "mcpserver.tests.no_such_module", {"name": "incomplete"}]
+		with hooks(mcp_tools=[*broken, f"{SAMPLE}.whoami"]), patch.object(frappe, "log_error") as log:
+			self.assertEqual(list(tools.registry()), ["whoami"])
+			self.assertEqual(self.ok("whoami")["user"], self.user)
+		self.assertEqual(log.call_count, 2 * len(broken))
 
 	def test_endpoint_is_whitelisted_for_guests_to_challenge(self):
 		self.assertIn(mcp.endpoint, frappe.whitelisted)

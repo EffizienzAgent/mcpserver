@@ -11,8 +11,8 @@ runs as the signed-in user, with that user's permissions.
   responses at `/api/method/mcpserver.mcp.endpoint`.
 - **OAuth sign-in for MCP clients.** Uses Frappe's OAuth 2 provider with discovery metadata and dynamic
   client registration, and makes it stricter: public clients only, loopback or allowlisted redirect URIs,
-  PKCE S256, plain-text client names, refresh token checks, a registration rate limit and a daily cleanup
-  of stale clients and tokens.
+  PKCE S256, plain-text client names, refresh token rotation with reuse detection, tokens bound to the MCP
+  endpoint, a registration rate limit and a daily cleanup of stale clients and tokens.
 - **Tool registry for apps.** Any installed app can add its own tools through the `mcp_tools` hook.
 - **Safe tool calls.** Arguments are checked against the tool's schema. A failed call rolls back everything
   it wrote, including commit callbacks, and unexpected errors never leak tracebacks.

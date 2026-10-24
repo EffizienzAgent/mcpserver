@@ -22,7 +22,8 @@ claude mcp add --scope user --transport http mysite https://<site>/api/method/mc
 
 Run `/mcp` in a session (or `claude mcp login mysite`) to sign in. Claude Code uses a
 `http://localhost:<port>/callback` redirect URI, which the server always accepts. Access tokens live one
-hour and refresh automatically.
+hour and refresh automatically. Tokens issued this way only work on the MCP endpoint, not on the rest of
+the site's API.
 
 ## claude.ai and Claude Desktop
 
@@ -71,7 +72,7 @@ for example `"Authorization": "token ${MYSITE_TOKEN}"`.
 
 - Users remove a client under `/third_party_apps`; this revokes all its tokens.
 - System Managers set tokens to **Revoked** in the **OAuth Bearer Token** list.
-- Refresh tokens expire 30 days after they were issued.
+- A sign-in lasts at most 30 days; refreshing rotates the tokens but does not extend it.
 
 ## Troubleshooting
 
