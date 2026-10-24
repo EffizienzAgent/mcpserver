@@ -5,7 +5,7 @@ app_description = "MCP server with OAuth for the Frappe Framework"
 app_email = "oss@effizienzagent.de"
 app_license = "mit"
 
-after_install = "mcpserver.setup.apply_oauth_settings"
+after_install = "mcpserver.setup.after_install"
 after_migrate = "mcpserver.setup.apply_oauth_settings"
 
 override_whitelisted_methods = {
@@ -16,5 +16,3 @@ override_whitelisted_methods = {
 }
 
 scheduler_events = {"daily": ["mcpserver.oauth.cleanup_dynamic_clients"]}
-
-mcp_tools = ["mcpserver.document_tools"]

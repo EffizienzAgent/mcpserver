@@ -85,7 +85,7 @@ mcp_call_context = ["myapp.mcp_tools.call_context"]
 
 - `mcp_server_info`: `serverInfo` in the `initialize` response. The last app that sets a key wins. The
   defaults are `mcpserver`, `MCP server` and the app version.
-- `mcp_instructions`: dotted paths to strings or functions returning strings. They are joined with the
-  **Instructions** from MCP Settings and sent to clients on `initialize`.
+- `mcp_instructions`: dotted paths to strings or functions returning strings. They are joined and sent
+  to clients on `initialize`.
 - `mcp_call_context`: dotted paths to context manager factories. Each tool call runs inside all of them,
   for example to set a flag that suppresses outgoing sync while an agent writes.

@@ -1,4 +1,5 @@
 import json
+from unittest.mock import patch
 
 import frappe
 from frappe.tests import IntegrationTestCase
@@ -6,7 +7,7 @@ from werkzeug.test import EnvironBuilder
 from werkzeug.wrappers import Request
 
 import mcpserver
-from mcpserver import mcp, tools
+from mcpserver import mcp, setup, tools
 from mcpserver.tests import sample_tools
 from mcpserver.tests.helpers import ACCEPT, MCP_PATH, hooks, make_user, restore_request_state, unique
 
@@ -84,15 +85,14 @@ class TestProtocol(McpTestCase):
 		unknown = self.rpc("initialize", {"protocolVersion": "2099-01-01"})["result"]
 		self.assertEqual(unknown["protocolVersion"], "2025-06-18")
 
-	def test_server_info_and_instructions_come_from_hooks_and_settings(self):
-		self.addCleanup(frappe.db.set_single_value, "MCP Settings", "instructions", None)
-		frappe.db.set_single_value("MCP Settings", "instructions", "Site notes.")
+	def test_server_info_and_instructions_come_from_hooks(self):
 		info = {"name": ["first", "app-server"], "title": ["App Server"]}
-		with hooks(mcp_server_info=info, mcp_instructions=[f"{SAMPLE}.INSTRUCTIONS"]):
+		instructions = [f"{SAMPLE}.INSTRUCTIONS", f"{SAMPLE}.more_instructions"]
+		with hooks(mcp_server_info=info, mcp_instructions=instructions):
 			result = self.rpc("initialize", {"protocolVersion": "2025-06-18"})["result"]
 		self.assertEqual(result["serverInfo"]["name"], "app-server")
 		self.assertEqual(result["serverInfo"]["title"], "App Server")
-		self.assertEqual(result["instructions"], "Sample instructions.\n\nSite notes.")
+		self.assertEqual(result["instructions"], "Sample instructions.\n\nMore instructions.")
 
 	def test_ping(self):
 		self.assertEqual(self.rpc("ping")["result"], {})
@@ -236,9 +236,17 @@ class TestRegistry(McpTestCase):
 		with hooks(mcp_tools=[f"{SAMPLE}.plain"]), self.assertRaises(TypeError):
 			tools.registry()
 
-	def test_app_hooks_register_document_tools(self):
-		self.assertIn("mcpserver.document_tools", frappe.get_hooks("mcp_tools", app_name="mcpserver"))
-
 	def test_endpoint_is_whitelisted_for_guests_to_challenge(self):
 		self.assertIn(mcp.endpoint, frappe.whitelisted)
 		self.assertIn(mcp.endpoint, frappe.guest_methods)
+
+
+class TestSetup(IntegrationTestCase):
+	def test_hint_about_the_builtin_server(self):
+		with patch.object(frappe, "get_system_settings", return_value=1), patch.dict(frappe.conf, {}):
+			frappe.conf.pop("disable_mcp_server", None)
+			self.assertTrue(setup.builtin_mcp_enabled())
+			frappe.conf["disable_mcp_server"] = 1
+			self.assertFalse(setup.builtin_mcp_enabled())
+		with patch.object(frappe, "get_system_settings", return_value=0):
+			self.assertFalse(setup.builtin_mcp_enabled())

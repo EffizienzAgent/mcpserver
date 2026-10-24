@@ -115,7 +115,6 @@ def server_info() -> dict:
 
 def instructions() -> str:
 	parts = [hook_text(path) for path in frappe.get_hooks("mcp_instructions")]
-	parts.append(frappe.db.get_single_value("MCP Settings", "instructions"))
 	return "\n\n".join(cstr(part).strip() for part in parts if cstr(part).strip())
 
 

@@ -69,4 +69,10 @@ def sample_context():
 
 
 INSTRUCTIONS = "Sample instructions."
+
+
+def more_instructions():
+	return "More instructions."
+
+
 imported_url = url
