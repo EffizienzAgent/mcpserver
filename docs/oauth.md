@@ -64,6 +64,8 @@ exchanged, and a code can only be used once.
 - Presenting a refresh token again within 60 seconds of its rotation (a retry or a parallel session)
   gets `400 invalid_grant` and changes nothing else. Presenting it later is treated as theft: all active
   tokens of that client and user are revoked, and the user signs in again.
+- Trade-off of the grace window: a stolen refresh token that is used within 60 seconds of a rotation is
+  refused but not detected as reuse, so the grant is not revoked in that case.
 - A sign-in lasts at most 30 days. Rotated tokens keep the issue time of the first token, so refreshing
   does not extend it; after that the refresh gets `400 invalid_grant` and the user signs in again.
 - Access tokens live one hour. Revoked and expired access tokens are rejected by Frappe.
