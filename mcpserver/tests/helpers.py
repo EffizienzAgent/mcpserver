@@ -27,7 +27,7 @@ def make_role(name):
 	return name
 
 
-def make_user(email, roles=()):
+def make_user(email, roles=(), desk=True):
 	if not frappe.db.exists("User", email):
 		frappe.get_doc(
 			{
@@ -39,7 +39,7 @@ def make_user(email, roles=()):
 			}
 		).insert(ignore_permissions=True)
 	user = frappe.get_doc("User", email)
-	user.add_roles(*(make_role(role) for role in (DESK_ROLE, *roles)))
+	user.add_roles(*(make_role(role) for role in ((DESK_ROLE,) if desk else ()) + tuple(roles)))
 	return email
 
 

@@ -11,8 +11,9 @@ support Streamable HTTP and OAuth 2.1 with dynamic client registration sign in b
 `401` with a `WWW-Authenticate` header pointing to `/.well-known/oauth-protected-resource`, register, open
 the browser for login and consent, and refresh their tokens.
 
-The client acts as the user who clicked **Allow**, with that user's roles and permissions. Users need desk
-access (the **Desk User** role); website users cannot authorize clients.
+The client acts as the user who clicked **Allow**, with that user's roles and permissions. Only System Users
+(role **Desk User**) may authorize clients and use the endpoint, unless an app sets other roles with the
+`mcp_allowed_roles` hook. The consent page shows registered clients as `(unverified) <name>`.
 
 ## Claude Code
 
@@ -85,4 +86,5 @@ for example `"Authorization": "token ${MYSITE_TOKEN}"`.
 | `429` | Too many requests (300 per minute per IP, 20 client registrations per hour per IP). |
 
 With `Content-Type: application/json`, Frappe parses the body before the endpoint runs, so invalid JSON
-gets Frappe's own error response instead of a JSON-RPC parse error.
+gets Frappe's own error response instead of a JSON-RPC parse error. With other content types the endpoint
+parses the body itself and answers invalid or too deeply nested JSON with `-32700`.

@@ -17,6 +17,7 @@ from mcpserver.tests.helpers import (
 	BASE,
 	MCP_PATH,
 	hooks,
+	make_role,
 	make_user,
 	parse,
 	restore_request_state,
@@ -197,7 +198,7 @@ class TestRegistration(OAuthTestCase):
 			"templates/includes/oauth_confirmation.html",
 			{"client_id": app_name, "details": ["all"], "success_url": "/", "failure_url": "/"},
 		)
-		self.assertIn("Claude Code (app) wants to access", page)
+		self.assertIn("(unverified) Claude Code (app) wants to access", page)
 		self.assertNotIn("<img", page)
 
 	def test_accepts_loopback_and_allowlisted_callbacks(self):
@@ -278,13 +279,50 @@ class TestRegistration(OAuthTestCase):
 		with self.assertRaises(frappe.RateLimitExceededError):
 			self.register()
 
-	def test_registration_stops_at_the_client_cap(self):
+	def used(self, client_id):
+		frappe.get_doc(
+			{
+				"doctype": "OAuth Bearer Token",
+				"client": client_id,
+				"user": "Administrator",
+				"scopes": "all",
+				"access_token": unique(),
+				"refresh_token": unique(),
+				"expires_in": 3600,
+			}
+		).insert(ignore_permissions=True)
+
+	def test_full_cap_evicts_the_oldest_unused_client(self):
+		for name in frappe.get_all("OAuth Client", {"software_id": oauth.DYNAMIC_CLIENT_ID}, pluck="name"):
+			self.used(name)
 		count = frappe.db.count("OAuth Client", {"software_id": oauth.DYNAMIC_CLIENT_ID})
-		with patch.object(oauth, "MAX_DYNAMIC_CLIENTS", count + 1):
-			self.assertEqual(self.register().status_code, 201)
+		with patch.object(oauth, "MAX_DYNAMIC_CLIENTS", count + 2):
+			first = parse(self.register())["client_id"]
+			frappe.db.set_value("OAuth Client", first, "creation", add_to_date(now_datetime(), minutes=-5))
+			second = parse(self.register())["client_id"]
+			third = self.register()
+		self.assertEqual(third.status_code, 201)
+		self.assertFalse(frappe.db.exists("OAuth Client", first))
+		self.assertTrue(frappe.db.exists("OAuth Client", second))
+
+	def test_full_cap_of_used_clients_refuses_registration(self):
+		for name in frappe.get_all("OAuth Client", {"software_id": oauth.DYNAMIC_CLIENT_ID}, pluck="name"):
+			self.used(name)
+		count = frappe.db.count("OAuth Client", {"software_id": oauth.DYNAMIC_CLIENT_ID})
+		with patch.object(oauth, "MAX_DYNAMIC_CLIENTS", count):
 			response = self.register()
 		self.assertEqual(response.status_code, 429)
 		self.assertEqual(parse(response)["error"], "temporarily_unavailable")
+
+	def test_registered_clients_are_marked_unverified_and_role_gated(self):
+		body = parse(self.register(client_name="Claude Code (app)"))
+		self.assertEqual(body["client_name"], "(unverified) Claude Code (app)")
+		client = frappe.get_doc("OAuth Client", body["client_id"])
+		self.assertEqual([row.role for row in client.allowed_roles], ["Desk User"])
+		make_role("MCP Agent")
+		with hooks(mcp_allowed_roles=["MCP Agent"]):
+			client = frappe.get_doc("OAuth Client", parse(self.register())["client_id"])
+		self.assertEqual([row.role for row in client.allowed_roles], ["MCP Agent"])
 
 	def test_disabled_registration(self):
 		self.addCleanup(frappe.db.set_single_value, "OAuth Settings", "enable_dynamic_client_registration", 1)
@@ -626,11 +664,12 @@ class TestCleanup(OAuthTestCase):
 		super().setUp()
 		self.user = make_user("mcp-oauth@example.test")
 
-	def client(self, days, dynamic=True):
+	def client(self, days=0, hours=0, dynamic=True):
 		name = parse(register())["client_id"]
 		if not dynamic:
 			frappe.db.set_value("OAuth Client", name, "software_id", None)
-		backdate("OAuth Client", name, days=days)
+		created = add_to_date(now_datetime(), days=-days, hours=-hours)
+		frappe.db.set_value("OAuth Client", name, "creation", created, update_modified=False)
 		return name
 
 	def token(self, client, days, status="Active", modified_days=0):
@@ -660,13 +699,13 @@ class TestCleanup(OAuthTestCase):
 	def test_cleanup_removes_stale_tokens_and_unused_clients(self):
 		active = self.client(days=60)
 		live = self.token(active, days=1)
-		recent_revoked = self.token(active, days=10, status="Revoked", modified_days=2)
-		old_revoked = self.token(active, days=10, status="Revoked", modified_days=8)
-		expired = self.token(active, days=38)
-		unused_old = self.client(days=8)
-		unused_new = self.client(days=1)
+		recent_revoked = self.token(active, days=20, status="Revoked", modified_days=8)
+		old_revoked = self.token(active, days=29, status="Revoked", modified_days=31)
+		expired = self.token(active, days=31)
+		unused_old = self.client(hours=2)
+		unused_new = self.client(hours=0)
 		manual = self.client(days=60, dynamic=False)
-		manual_revoked = self.token(manual, days=10, status="Revoked", modified_days=8)
+		manual_revoked = self.token(manual, days=40, status="Revoked", modified_days=40)
 
 		oauth.cleanup_dynamic_clients()
 
@@ -680,3 +719,8 @@ class TestCleanup(OAuthTestCase):
 		self.assertFalse(exists("OAuth Client", unused_old))
 		self.assertTrue(exists("OAuth Client", unused_new))
 		self.assertTrue(exists("OAuth Client", manual))
+
+	def test_cleanup_runs_hourly(self):
+		self.assertIn(
+			"mcpserver.oauth.cleanup_dynamic_clients", frappe.get_hooks("scheduler_events")["hourly"]
+		)

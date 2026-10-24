@@ -10,6 +10,7 @@ from frappe.utils import add_to_date, escape_html, now_datetime
 from pydantic import ValidationError
 from werkzeug.utils import redirect
 
+from mcpserver.access import allowed_roles
 from mcpserver.mcp import json_response
 
 DYNAMIC_CLIENT_ID = "mcpserver-dcr"
@@ -24,7 +25,8 @@ SCOPE = re.compile(r"[A-Za-z0-9_.:-]+( [A-Za-z0-9_.:-]+)*")
 REGISTRATION_LIMIT = 20
 MAX_DYNAMIC_CLIENTS = 200
 REFRESH_TOKEN_DAYS = 30
-STALE_DAYS = 7
+UNUSED_CLIENT_HOURS = 1
+UNVERIFIED_PREFIX = "(unverified) "
 ROTATION_GRACE_SECONDS = 60
 PKCE_REQUIRED = "PKCE with code_challenge_method=S256 is required"
 
@@ -156,7 +158,9 @@ def register_client():
 	if problem := metadata_problem(metadata, data["redirect_uris"]):
 		return oauth_error(*problem)
 	if frappe.db.count("OAuth Client", {"software_id": DYNAMIC_CLIENT_ID}) >= MAX_DYNAMIC_CLIENTS:
-		return oauth_error("temporarily_unavailable", "Too many registered clients", 429)
+		if not (oldest := unused_clients(limit=1)):
+			return oauth_error("temporarily_unavailable", "Too many registered clients", 429)
+		delete_client(oldest[0])
 	return registration_response(create_client(metadata, data["redirect_uris"][0]), metadata)
 
 
@@ -212,7 +216,7 @@ def create_client(metadata, redirect_uri):
 	return frappe.get_doc(
 		{
 			"doctype": "OAuth Client",
-			"app_name": escape_html(metadata.client_name),
+			"app_name": UNVERIFIED_PREFIX + escape_html(metadata.client_name),
 			"scopes": metadata.scope or "all",
 			"redirect_uris": redirect_uri,
 			"default_redirect_uri": redirect_uri,
@@ -221,6 +225,7 @@ def create_client(metadata, redirect_uri):
 			"skip_authorization": 0,
 			"token_endpoint_auth_method": "None",
 			"software_id": DYNAMIC_CLIENT_ID,
+			"allowed_roles": [{"role": role} for role in allowed_roles()],
 		}
 	).insert(ignore_permissions=True)
 
@@ -247,29 +252,23 @@ def cleanup_dynamic_clients():
 	clients = frappe.get_all("OAuth Client", filters={"software_id": DYNAMIC_CLIENT_ID}, pluck="name")
 	if not clients:
 		return
-	stale = add_to_date(now_datetime(), days=-STALE_DAYS)
+	kept = add_to_date(now_datetime(), days=-REFRESH_TOKEN_DAYS)
 	frappe.db.delete(
-		"OAuth Bearer Token", {"client": ["in", clients], "status": "Revoked", "modified": ["<", stale]}
+		"OAuth Bearer Token", {"client": ["in", clients], "status": "Revoked", "modified": ["<", kept]}
 	)
-	frappe.db.delete(
-		"OAuth Bearer Token",
-		{
-			"client": ["in", clients],
-			"creation": ["<", add_to_date(stale, days=-REFRESH_TOKEN_DAYS)],
-		},
-	)
-	used = frappe.get_all(
-		"OAuth Bearer Token", filters={"client": ["in", clients]}, pluck="client", distinct=True
-	)
-	unused = frappe.get_all(
-		"OAuth Client",
-		filters={
-			"software_id": DYNAMIC_CLIENT_ID,
-			"creation": ["<", stale],
-			"name": ["not in", used or [""]],
-		},
-		pluck="name",
-	)
-	for name in unused:
-		frappe.db.delete("OAuth Authorization Code", {"client": name})
-		frappe.delete_doc("OAuth Client", name, ignore_permissions=True, force=True)
+	frappe.db.delete("OAuth Bearer Token", {"client": ["in", clients], "creation": ["<", kept]})
+	for name in unused_clients(before=add_to_date(now_datetime(), hours=-UNUSED_CLIENT_HOURS)):
+		delete_client(name)
+
+
+def unused_clients(before=None, limit=None) -> list[str]:
+	used = frappe.get_all("OAuth Bearer Token", pluck="client", distinct=True)
+	filters = {"software_id": DYNAMIC_CLIENT_ID, "name": ["not in", used or [""]]}
+	if before:
+		filters["creation"] = ["<", before]
+	return frappe.get_all("OAuth Client", filters=filters, pluck="name", order_by="creation asc", limit=limit)
+
+
+def delete_client(name):
+	frappe.db.delete("OAuth Authorization Code", {"client": name})
+	frappe.delete_doc("OAuth Client", name, ignore_permissions=True, force=True)
