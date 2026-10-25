@@ -1,6 +1,6 @@
 app_name = "mcpserver"
 app_title = "MCP Server"
-app_publisher = "EffizienzAgent"
+app_publisher = "EffizienzAgent (Tobias Mende)"
 app_description = "MCP server with OAuth for the Frappe Framework"
 app_email = "oss@effizienzagent.de"
 app_license = "mit"
