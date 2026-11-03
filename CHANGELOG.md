@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.2.0](https://github.com/EffizienzAgent/mcpserver/compare/v0.1.1...v0.2.0) (2026-11-03)
+
+
+### Features
+
+* add app icon ([7df377d](https://github.com/EffizienzAgent/mcpserver/commit/7df377d1641eaf58c51df0a61ebb52c9757a25c4))
+
+
+### Documentation
+
+* add app logo ([41ecac9](https://github.com/EffizienzAgent/mcpserver/commit/41ecac9f8f5d64c81db40725eab93b7f4a1ed032))
+
 ## [0.1.1](https://github.com/EffizienzAgent/mcpserver/compare/v0.1.0...v0.1.1) (2026-10-24)
 
 
