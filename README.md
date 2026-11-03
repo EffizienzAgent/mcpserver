@@ -1,5 +1,7 @@
 MCP server with OAuth for the Frappe Framework
 
+<img src="docs/images/logo.png" alt="" width="96" align="right">
+
 # mcpserver
 
 `mcpserver` turns a Frappe site into a remote [MCP](https://modelcontextprotocol.io) server that Claude and

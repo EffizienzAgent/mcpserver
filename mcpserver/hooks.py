@@ -4,6 +4,7 @@ app_publisher = "EffizienzAgent (Tobias Mende)"
 app_description = "MCP server with OAuth for the Frappe Framework"
 app_email = "oss@effizienzagent.de"
 app_license = "mit"
+app_logo_url = "/assets/mcpserver/images/mcpserver-logo.svg"
 
 after_install = "mcpserver.setup.after_install"
 after_migrate = "mcpserver.setup.apply_oauth_settings"

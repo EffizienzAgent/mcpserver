@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+  <defs><linearGradient id="bg" gradientUnits="userSpaceOnUse" x1="102.4" y1="102.4" x2="409.6" y2="409.6"><stop offset="0" stop-color="#1E3A8A"/><stop offset=".5" stop-color="#2563EB"/><stop offset="1" stop-color="#059669"/></linearGradient></defs>
+  <rect width="512" height="512" rx="128" fill="url(#bg)"/>
+  <rect x="126" y="120" width="260" height="84" rx="20" fill="#fff"/>
+  <rect x="126" y="220" width="260" height="84" rx="20" fill="#fff"/>
+  <circle cx="170" cy="162" r="14" fill="url(#bg)"/>
+  <circle cx="170" cy="262" r="14" fill="url(#bg)"/>
+  <rect x="226" y="153" width="120" height="18" rx="9" fill="url(#bg)"/>
+  <rect x="226" y="253" width="120" height="18" rx="9" fill="url(#bg)"/>
+  <rect x="246" y="304" width="20" height="44" fill="#fff"/>
+  <rect x="146" y="338" width="220" height="20" rx="10" fill="#fff"/>
+  <circle cx="156" cy="348" r="30" fill="#fff"/>
+  <circle cx="256" cy="370" r="30" fill="#fff"/>
+  <circle cx="356" cy="348" r="30" fill="#fff"/>
+  <circle cx="156" cy="348" r="12" fill="url(#bg)"/>
+  <circle cx="256" cy="370" r="12" fill="url(#bg)"/>
+  <circle cx="356" cy="348" r="12" fill="url(#bg)"/>
+</svg>
